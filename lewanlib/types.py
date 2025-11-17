@@ -10,7 +10,7 @@ Real = Union[float, int]
 
 class _ServoPacket(NamedTuple):
     """
-    
+    defines the components of a servo packet.
     """
     servo_id: int
     command: int

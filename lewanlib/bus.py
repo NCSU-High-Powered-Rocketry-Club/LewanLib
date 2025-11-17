@@ -29,7 +29,8 @@ class ServoBusError(Exception):
 
 class ServoBus:
     """
-    
+    Represents a bus of LewanSoul servos connected via a serial interface.
+    Provides methods to send commands and read data from servos.
     """
 
     def __init__(
@@ -43,10 +44,7 @@ class ServoBus:
             discard_echo: bool = True,          # Discard echoed bytes after sending
             verify_checksum: bool = True        # Verify checksums on received packets
     ) -> None:
-        """
         
-        """
-
         self.on_enter_power_on = on_enter_power_on
         self.on_exit_power_off = on_exit_power_off
         self.discard_echo = discard_echo
@@ -64,8 +62,7 @@ class ServoBus:
             self._close_on_exit = True
 
         # RLock (recursive lock) ensures thread-safe access to the serial port.
-        # Multiple threads can safely call bus methods; only one at a time will
-        # have access to the serial port.
+        # Multiple threads can safely call bus methods; only one at a time will have access to the serial port.
         self._serial_conn_lock = RLock()
 
     def __enter__(self):
@@ -96,13 +93,20 @@ class ServoBus:
 
     @property
     def serial_conn(self):
-        """Return the underlying serial.Serial connection object."""
+        """
+        Return the underlying serial.Serial connection object.
+        """
         return self._serial_conn
 
     def _send_packet(self, servo_id: int, command: int,
                      parameters: Optional[Union[bytearray, bytes]] = None) -> None:
         """
-        
+        servo_id - Target servo ID (0-253) or broadcast ID (254).
+        command - Command byte (0-255).
+        parameters - Optional bytearray or bytes of parameters to include in the packet.
+
+        Sends a packet to the specified servo over the serial connection.
+
         """
         # Validate inputs
         if servo_id < constants.MIN_ID or servo_id > constants.BROADCAST_ID:
@@ -146,7 +150,10 @@ class ServoBus:
 
     def _receive_packet(self) -> types._ServoPacket:
         """
-        
+        receives a packet from the servo over the serial connection.
+        Returns a _ServoPacket namedtuple with fields: (servo_id, command, parameters).
+        Raises ServoBusError on checksum failure or protocol errors.
+
         """
         with self._serial_conn_lock:
             # Read the 2-byte synchronization header
@@ -187,7 +194,13 @@ class ServoBus:
             parameters: Optional[Union[bytearray, bytes]] = None
     ) -> types._ServoPacket:
         """
-        
+        servo_id - Target servo ID (0-253)
+        command - Command byte (0-255)
+        parameters - Optional bytearray or bytes of parameters to include in the packet
+
+        returns the response packet from the servo after sending a command
+        Raises ServoBusError on checksum failure or protocol errors
+
         """
         with self._serial_conn_lock:
             self._send_packet(servo_id, command, parameters=parameters)
@@ -211,7 +224,10 @@ class ServoBus:
 
     def get_servo(self, servo_id: int, name: Optional[str] = None):
         """
+        servo_id - Target servo ID (0-253)
+        name - Optional name for the servo (for easier identification)
         
+        returns a Servo object representing the servo with the given ID.
         """
         # Local import to avoid circular imports
         from .servo import Servo
@@ -223,9 +239,12 @@ class ServoBus:
     def _move_time_write(self, servo_id: int, angle_degrees: types.Real, time_s: types.Real,
                          command: int, wait: bool) -> None:
         """
-        
+        id - the servo ID
+        angle_degrees - target angle in degrees
+        time_s - time to move in seconds
+        wait: Whether or not to wait time_s seconds after sending the command.
+        command: Acceptable values are _SERVO_MOVE_TIME_WRITE, or _SERVO_MOVE_TIME_WAIT_WRITE.
         """
-
         if command not in {constants._SERVO_MOVE_TIME_WRITE, constants._SERVO_MOVE_TIME_WAIT_WRITE}:
             raise ValueError(
                 f'Command must be either {constants._SERVO_MOVE_TIME_WRITE} or '
@@ -246,8 +265,10 @@ class ServoBus:
     def move_time_write(self, servo_id: int, angle_degrees: types.Real, time_s: types.Real,
                         wait: bool = False) -> None:
         """
-        
-
+        id - the servo ID
+        angle_degrees - target angle in degrees
+        time_s - time to move in seconds
+        wait: Whether or not to wait time_s seconds after sending the command.
         """
         return self._move_time_write(servo_id, angle_degrees, time_s,
                                      constants._SERVO_MOVE_TIME_WRITE, wait)
@@ -255,8 +276,9 @@ class ServoBus:
     def move_time_wait_write(self, servo_id: int, angle_degrees: types.Real,
                              time_s: types.Real) -> None:
         """
-        
-
+        servo_id
+        angle_degrees - target angle in degrees
+        time_s - time to move in seconds
         """
         return self._move_time_write(servo_id, angle_degrees, time_s,
                                      constants._SERVO_MOVE_TIME_WAIT_WRITE, False)
@@ -265,7 +287,8 @@ class ServoBus:
             self, servo_id: int, command: int
     ) -> Tuple[float, float]:
         """
-        
+        servo_id:
+        Returns the parameters set by the last call to move_time_write().
         """
 
         if command not in {constants._SERVO_MOVE_TIME_READ, constants._SERVO_MOVE_TIME_WAIT_READ}:
@@ -286,8 +309,7 @@ class ServoBus:
         """
         Read the move target and duration that was set.
 
-        Returns:
-            Tuple of (angle_degrees, time_seconds) from the last move_time_write.
+        Returns Tuple of (angle_degrees, time_seconds) from the last move_time_write.
         """
         return self._move_time_read(servo_id, command=constants._SERVO_MOVE_TIME_READ)
 
@@ -295,8 +317,7 @@ class ServoBus:
         """
         Read the move target and duration for a blocking move.
 
-        Returns:
-            Tuple of (angle_degrees, time_seconds) from the last move_time_wait_write.
+        Returns Tuple of (angle_degrees, time_seconds) from the last move_time_wait_write.
         """
         return self._move_time_read(
             servo_id, command=constants._SERVO_MOVE_TIME_WAIT_READ)
@@ -304,8 +325,11 @@ class ServoBus:
     def move_speed_write(self, servo_id: int, angle_degrees: types.Real,
                          speed_dps: types.Real, wait: bool = False) -> None:
         """
-        
+        servo_id
+        angle_degrees - target angle in degrees
+        speed_dps - speed in degrees per second
 
+        moves to angle at a specific speed (degrees/second).
         """
 
         current_angle = self.pos_read(servo_id)
@@ -318,8 +342,10 @@ class ServoBus:
             self, *servo_ids: int, period_s: types.Real = 0.1
     ) -> List[float]:
         """
-        
+        servo_ids - One or more servo IDs to read velocity from.
+        period_s - Time interval over which to measure velocity (seconds).
 
+        Estimate current velocity by sampling position twice with a delay.
         """
 
         measurements0 = [(time.monotonic(), self.pos_read(servo_id)) for
@@ -338,8 +364,9 @@ class ServoBus:
 
     def move_start(self, servo_id: int) -> None:
         """
-        
+        servo_id
 
+        Start executing all queued moves (from move_time_wait_write()).
         """
         self._send_packet(servo_id, constants._SERVO_MOVE_START)
 
@@ -357,7 +384,8 @@ class ServoBus:
 
     def id_write(self, old_id: int, new_id: int) -> None:
         """
-        
+        old_id: Current servo ID.
+        new_id: New servo ID to set (0-253).
 
         """
         if old_id < constants.MIN_ID or old_id > constants.MAX_ID:
@@ -376,8 +404,9 @@ class ServoBus:
     def angle_offset_adjust(self, servo_id: int, offset_degrees: types.Real,
                             write: bool = True) -> None:
         """
-        
-
+        servo_id:
+        offset_degrees - Offset angle in degrees (-30 to +30).
+        write - If True, save the offset to permanent memory.
         """
 
         if offset_degrees < -30 or offset_degrees > 30:
@@ -398,8 +427,6 @@ class ServoBus:
 
         This ensures the offset persists even after the servo is powered off.
 
-        Args:
-            servo_id: Target servo ID (0-253).
         """
         self._send_packet(servo_id, constants._SERVO_ANGLE_OFFSET_WRITE)
 
@@ -407,8 +434,7 @@ class ServoBus:
         """
         Read the current angle offset.
 
-        Returns:
-            Offset angle in degrees (-30 to +30).
+        Returns Offset angle in degrees (-30 to +30).
         """
         response = self._send_and_receive_packet(servo_id,
                                                  constants._SERVO_ANGLE_OFFSET_READ)
@@ -418,7 +444,12 @@ class ServoBus:
     def angle_limit_write(self, servo_id: int, min_angle_degrees: types.Real,
                           max_angle_degrees: types.Real) -> None:
         """
-        
+        servo_id:
+        min_angle_degrees - Minimum angle limit in degrees.
+        max_angle_degrees - Maximum angle limit in degrees.
+
+        Sets angle Minimum and Maximum limits.
+        returns error if min_angle_degrees >= max_angle_degrees.
 
         """
 
@@ -440,8 +471,7 @@ class ServoBus:
         """
         Read the servo's angle limits.
 
-        Returns:
-            Tuple of (min_angle_degrees, max_angle_degrees).
+        Tuple of (min_angle_degrees, max_angle_degrees).
         """
         response = self._send_and_receive_packet(servo_id,
                                                  constants._SERVO_ANGLE_LIMIT_READ)
@@ -460,7 +490,12 @@ class ServoBus:
     def vin_limit_write(self, servo_id: int, min_voltage: types.Real,
                         max_voltage: types.Real) -> None:
         """
-        
+        servo_id:
+        min_voltage - Minimum input voltage in Volts.
+        max_voltage - Maximum input voltage in Volts.
+
+        Set limits on the servo's input voltage.
+        returns error if min_voltage >= max_voltage.
 
         """
 
@@ -484,8 +519,7 @@ class ServoBus:
         """
         Read the servo's voltage limits.
 
-        Returns:
-            Tuple of (min_voltage_volts, max_voltage_volts).
+        Returns Tuple of (min_voltage_volts, max_voltage_volts).
         """
         response = self._send_and_receive_packet(servo_id,
                                                  constants._SERVO_VIN_LIMIT_READ)
@@ -502,7 +536,12 @@ class ServoBus:
     def temp_max_limit_write(self, servo_id: int, temp: types.Real,
                              units: str = 'F') -> None:
         """
-        
+        servo_id:
+        temp - Maximum temperature limit.
+        units - 'C' for Celsius or 'F' for Fahrenheit.
+
+        set the maximum temperature limit for the servo.
+        returns error if temp is out of range [50°C, 100°C] or [122°F, 212°F].
 
         """
 
@@ -519,7 +558,10 @@ class ServoBus:
     def temp_max_limit_read(self, servo_id: int,
                             units: str = 'F') -> float:
         """
-        
+        servo_id:
+        units - 'C' for Celsius or 'F' for Fahrenheit.
+
+        returns the maximum temperature limit.
         """
         units = utils._validate_temp_units(units)
 
@@ -534,7 +576,10 @@ class ServoBus:
 
     def temp_read(self, servo_id: int, units: str = 'F') -> float:
         """
-        
+        servo_id:
+        units - 'C' for Celsius or 'F' for Fahrenheit.
+
+        read the servo's current temperature.
 
         """
         units = utils._validate_temp_units(units)
@@ -552,7 +597,7 @@ class ServoBus:
 
     def vin_read(self, servo_id: int) -> float:
         """
-        
+        read the servo's current input voltage (in Volts).
 
         """
         response = self._send_and_receive_packet(servo_id, constants._SERVO_VIN_READ)
@@ -563,7 +608,7 @@ class ServoBus:
 
     def pos_read(self, servo_id: int) -> float:
         """
-        
+        read the servo's current position (in degrees).
 
         """
         response = self._send_and_receive_packet(servo_id, constants._SERVO_POS_READ)
@@ -578,7 +623,12 @@ class ServoBus:
     def mode_write(self, servo_id: int, mode: str,
                    speed: Optional[types.Real] = None) -> None:
         """
-        
+        servo_id:
+        mode - 'servo' (hold position) or 'motor' (rotate continuously).
+        speed - Speed in degrees per second (required if mode='motor').
+
+        Set the servo's operating mode.
+        speed is restricted to [-1000, 1000] degrees/second.
 
         """
 
@@ -602,7 +652,11 @@ class ServoBus:
 
     def mode_read(self, servo_id: int) -> Tuple[str, Optional[int]]:
         """
-        
+        servo_id:
+        returns the current mode and speed setting.
+        Mode is 'servo' or 'motor'.
+        Speed is in degrees/second if mode is 'motor', else None.
+
         """
         response = self._send_and_receive_packet(servo_id,
                                                  constants._SERVO_OR_MOTOR_MODE_READ)
@@ -625,7 +679,9 @@ class ServoBus:
 
     def set_powered(self, servo_id: int, powered: bool) -> None:
         """
-        
+        servo_id:
+
+        Enable (True) or disable (False) servo torque (motor on/off).
 
         """
         self._send_packet(servo_id, constants._SERVO_LOAD_OR_UNLOAD_WRITE,
@@ -633,7 +689,10 @@ class ServoBus:
 
     def is_powered(self, servo_id: int) -> bool:
         """
-        
+        servo_id:
+
+        returns True if servo torque is currently enabled.
+
         """
         if servo_id < constants.MIN_ID or servo_id > constants.MAX_ID:
             raise ValueError(
@@ -649,8 +708,10 @@ class ServoBus:
 
     def led_ctrl_write(self, servo_id: int, state: bool) -> None:
         """
-        
+        servo_id:
+        state - If True, enable the LED; if False, disable it.
 
+        Control the LED state when there are no errors.
         """
         self._send_packet(servo_id, constants._SERVO_LED_CTRL_WRITE,
                           b'\x00' if state else b'\x01')
@@ -659,8 +720,7 @@ class ServoBus:
         """
         Read the servo's LED control state.
 
-        Returns:
-            True if LED is enabled, False if disabled.
+        Returns True if LED is enabled, False if disabled.
         """
         response = self._send_and_receive_packet(servo_id, constants._SERVO_LED_CTRL_READ)
         return response.parameters == b'\x00'
@@ -668,8 +728,13 @@ class ServoBus:
     def led_error_write(self, servo_id: int, stalled: bool, over_voltage: bool,
                         over_temp: bool) -> None:
         """
-        
+        servo_id:
+        stalled - If True, LED will indicate stall errors.
+        over_voltage - If True, LED will indicate over-voltage errors.
+        over_temp - If True, LED will indicate over-temperature errors.
 
+
+        Returns booleans indicating which error conditions trigger the LED.
         """
         params = (stalled << 2) | (over_voltage << 1) | over_temp
         params = bytes((params,))
@@ -679,8 +744,7 @@ class ServoBus:
         """
         Read which error conditions trigger the LED.
 
-        Returns:
-            Tuple of (stalled, over_voltage, over_temp) booleans.
+        Returns Tuple of (stalled, over_voltage, over_temp) booleans.
         """
         result = self._send_and_receive_packet(servo_id, constants._SERVO_LED_ERROR_READ)
         params = result.parameters[0]

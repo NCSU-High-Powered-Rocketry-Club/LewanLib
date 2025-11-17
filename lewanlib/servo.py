@@ -1,13 +1,10 @@
 """
-Servo wrapper class for convenient single-servo control.
-
 This module provides the Servo class, which is a convenience wrapper that remembers
-a specific servo's ID and automatically includes it in all commands. Instead of
-writing servo_bus.move_time_write(servo_id=1, angle=120, time=1), you can write
+a specific servo's ID and automatically includes it in all commands.
+
+Instead of writing servo_bus.move_time_write(servo_id=1, angle=120, time=1), you can write
 servo.move_time_write(120, 1).
 
-This is a "Facade" pattern that simplifies the API for the common case where you're
-controlling one servo at a time.
 """
 from typing import TYPE_CHECKING, Optional
 
@@ -20,11 +17,19 @@ if TYPE_CHECKING:
 
 class Servo:
     """
-    
+    Wrapper class for a single servo on a ServoBus.
+    Remembers the servo ID and bus, and delegates all commands to the bus with the ID included.
+
+    id (int): The ID of the servo (0-253).
+    bus (ServoBus): The ServoBus instance this servo is connected to.
+    name (Optional[str]): An optional name for the servo for easier identification.
+
     """
 
     def __init__(self, id_: int, bus: 'ServoBus', name: Optional[str] = None) -> None:
         """
+        sets up a Servo object with the given ID and bus.
+        0-253 are valid IDs for servos.
         
         """
         self.id = id_
@@ -33,24 +38,26 @@ class Servo:
 
     def __str__(self) -> str:
         """
-        
+        returns string representation of the servo or 'Servo' if no name is set.
         """
         name = self.name or 'Servo'
         return f'{name} (ID {self.id})'
 
-    # =========================================================================
     # MOVEMENT COMMANDS (all delegate to self.bus with self.id prepended)
-    # =========================================================================
 
     def move_time_write(self, *args, **kwargs) -> None:
         """
-        
+        Moves servo to specified angle over given time.
+        Sends command to servo immediately.
         """
         self.bus.move_time_write(self.id, *args, **kwargs)
 
     def move_time_wait_write(self, *args, **kwargs) -> None:
         """
-        
+        Moves servo to specified angle over given time.
+        Holds and waits for seperate command (move_start()) to begin motion.
+        Servo will block subsequent commands until move_start() is called.
+        Can move all servos simultaneously by providing broadcast ID to move_start(254)
         """
         self.bus.move_time_wait_write(self.id, *args, **kwargs)
 
@@ -82,7 +89,7 @@ class Servo:
 
     def id_write(self, new_id: int) -> None:
         """
-        
+        checks new_id is valid and changes the servo's ID to new_id.
         """
         self.bus.id_write(self.id, new_id)
         self.id = new_id

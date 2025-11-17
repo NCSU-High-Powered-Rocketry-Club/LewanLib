@@ -15,7 +15,7 @@ Real = Union[float, int]
 
 def truncate_angle(angle_degrees: Real) -> Real:
     """
-    
+    returns angle_degrees if between MIN_ANGLE_DEGREES and MAX_ANGLE_DEGREES else returns nearest limit.
 
     """
     return min(max(constants.MIN_ANGLE_DEGREES, angle_degrees),
@@ -25,7 +25,7 @@ def truncate_angle(angle_degrees: Real) -> Real:
 def _calculate_checksum(servo_id: int, length: int, command: int,
                         parameters: Union[bytearray, bytes]) -> int:
     """
-    
+    returns checksum byte for given packet components.
 
     """
     # Sum all relevant bytes
@@ -37,20 +37,20 @@ def _calculate_checksum(servo_id: int, length: int, command: int,
 
 def _celsius_to_fahrenheit(temp: Real) -> float:
     """
-    
-"""
+    Unit conversion from Celsius to Fahrenheit.
+    """
     return (temp * 9 / 5) + 32
 
 def _fahrenheit_to_celsius(temp: Real) -> float:
     """
-    
+    unit conversion from Fahrenheit to Celsius.
     """
     return (temp - 32) * 5 / 9
 
 
 def _degrees_to_ticks(degrees: Real) -> int:
     """
-    
+    unit conversion from degrees to internal servo ticks.
 
     """
     return int(float(degrees * 1000 / constants.MAX_ANGLE_DEGREES))
@@ -58,7 +58,7 @@ def _degrees_to_ticks(degrees: Real) -> int:
 
 def _ticks_to_degrees(ticks: int) -> float:
     """
-    
+    unit conversion from internal servo ticks to degrees.    
 
     """
     return ticks * constants.MAX_ANGLE_DEGREES / 1000
@@ -66,7 +66,7 @@ def _ticks_to_degrees(ticks: int) -> float:
 
 def _validate_temp_units(units: str) -> str:
     """
-    
+    checks that units is either 'C' or 'F', case-insensitive. Raises ValueError if not.
     """
     if units.upper() not in {'C', 'F'}:
         raise ValueError(f'Units must be either "C" or "F"; got "{units}".')
