@@ -4,9 +4,8 @@ LewanSoul bus servos. It handles all low-level protocol details (packet construc
 checksum calculation, serial communication) and provides high-level commands for
 moving servos, reading sensors, and configuring behavior.
 
-The LewanSoul protocol is a master-slave protocol where your computer is the master
-and the servos are slaves. The master sends commands on a single serial line (RS-485),
-and each servo either executes the command (if it's addressed) or ignores it (if it's
+The LewanSoul protocol is a host-device protocol. The computer (host) sends commands on a single serial line (RS-485),
+and each servo (device) either executes the command (if it's addressed) or ignores it (if it's
 for a different servo). Some commands also cause the servo to send a response packet.
 
 """

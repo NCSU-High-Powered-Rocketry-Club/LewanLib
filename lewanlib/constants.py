@@ -32,9 +32,9 @@ _1_UNSIGNED_CHAR_1_UNSIGNED_SHORT_STRUCT = struct.Struct('<bxh')
 
 _2_UNSIGNED_SHORTS_STRUCT = struct.Struct('<HH')
 
-# SERVO COMMAND CODES (from the LewanSoul protocol specification)
+# SERVO COMMAND CODES
 
-# --- MOTION COMMANDS ---
+# MOTION COMMANDS 
 _SERVO_MOVE_TIME_WRITE = 1         # Move to angle over specified time (immediate)
 _SERVO_MOVE_TIME_READ = 2          # Read the last angle+time set by MOVE_TIME_WRITE
 _SERVO_MOVE_TIME_WAIT_WRITE = 7    # Queue a move, but DON'T start it yet
@@ -42,42 +42,42 @@ _SERVO_MOVE_TIME_WAIT_READ = 8     # Read the queued move (from MOVE_TIME_WAIT_W
 _SERVO_MOVE_START = 11             # Start executing all queued moves
 _SERVO_MOVE_STOP = 12              # Stop the servo immediately
 
-# --- IDENTIFICATION COMMANDS ---
+# IDENTIFICATION COMMANDS 
 _SERVO_ID_WRITE = 13               # Change this servo's ID (e.g., 1 -> 5)
 _SERVO_ID_READ = 14                # Read this servo's current ID
 
-# --- ANGLE CALIBRATION COMMANDS ---
+# ANGLE CALIBRATION COMMANDS 
 
 _SERVO_ANGLE_OFFSET_ADJUST = 17    # Temporarily adjust the angle offset
 _SERVO_ANGLE_OFFSET_WRITE = 18     # Save the offset to non-volatile memory
 _SERVO_ANGLE_OFFSET_READ = 19      # Read the saved offset
 
-# --- ANGLE LIMIT COMMANDS ---
+# ANGLE LIMIT COMMANDS 
 _SERVO_ANGLE_LIMIT_WRITE = 20      # Set min and max angles (soft limits)
 _SERVO_ANGLE_LIMIT_READ = 21       # Read the current angle limits
 
-# --- VOLTAGE LIMIT COMMANDS ---
+# VOLTAGE LIMIT COMMANDS
 _SERVO_VIN_LIMIT_WRITE = 22        # Set min and max supply voltage
 _SERVO_VIN_LIMIT_READ = 23         # Read the voltage limits
 
-# --- TEMPERATURE LIMIT COMMANDS ---
+# TEMPERATURE LIMIT COMMANDS 
 _SERVO_TEMP_MAX_LIMIT_WRITE = 24   # Set maximum allowed temperature
 _SERVO_TEMP_MAX_LIMIT_READ = 25    # Read the temperature limit
 
-# --- SENSOR READ COMMANDS ---
+# SENSOR READ COMMANDS 
 _SERVO_TEMP_READ = 26              # Read current servo temperature (in Celsius)
 _SERVO_VIN_READ = 27               # Read current input voltage (in mV)
 _SERVO_POS_READ = 28               # Read current servo position (in ticks)
 
-# --- MODE COMMANDS ---
+# MODE COMMANDS
 _SERVO_OR_MOTOR_MODE_WRITE = 29    # Switch between servo mode and motor mode
 _SERVO_OR_MOTOR_MODE_READ = 30     # Read current mode and speed
 
-# --- POWER/TORQUE COMMANDS ---
+# POWER/TORQUE COMMANDS 
 _SERVO_LOAD_OR_UNLOAD_WRITE = 31   # Enable (1) or disable (0) torque
 _SERVO_LOAD_OR_UNLOAD_READ = 32    # Read torque enable status
 
-# --- LED INDICATOR COMMANDS ---
+# LED INDICATOR COMMANDS 
 _SERVO_LED_CTRL_WRITE = 33         # Set LED state (on/off in normal operation)
 _SERVO_LED_CTRL_READ = 34          # Read LED control setting
 _SERVO_LED_ERROR_WRITE = 35        # Set which error types trigger the LED
