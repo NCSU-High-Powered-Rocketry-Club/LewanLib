@@ -16,6 +16,7 @@ from multiprocessing import RLock
 import serial  # type: ignore
 
 from . import constants, utils, types
+from .gpio import GPIOPin
 
 
 class ServoBusError(Exception):
@@ -42,7 +43,9 @@ class ServoBus:
             on_exit_power_off: bool = True,     # Power off all servos on context exit
             discard_echo: bool = True,          # Discard echoed bytes after sending
             verify_checksum: bool = True,       # Verify checksums on received packets
-            retry_count: int = 3                # Number of retries for read operations
+            retry_count: int = 3,               # Number of retries for read operations
+            rx_disable: Optional[GPIOPin] = None,
+            tx_disable: Optional[GPIOPin] = None,
     ) -> None:
         
         self.on_enter_power_on = on_enter_power_on
@@ -61,6 +64,9 @@ class ServoBus:
             self._serial_conn = serial.Serial(
                 port=port, baudrate=baudrate, timeout=timeout)
             self._close_on_exit = True
+
+        self._rx_disable = rx_disable
+        self._tx_disable = tx_disable
 
         # RLock (recursive lock) ensures thread-safe access to the serial port.
         # Multiple threads can safely call bus methods; only one at a time will have access to the serial port.
@@ -136,6 +142,15 @@ class ServoBus:
         # Send over serial, thread-safe
         with self._serial_conn_lock:
             # Clear the input buffer to remove any stale/corrupted data
+            # Enable TX
+            if self._tx_disable:
+                self._tx_disable.drive_low()
+            
+            # Enable RX immediately to ensure we don't miss the response.
+            # This will cause an echo of the transmitted packet.
+            if self._rx_disable:
+                self._rx_disable.drive_low()
+
             try:
                 self.serial_conn.reset_input_buffer()
             except AttributeError:
@@ -143,11 +158,19 @@ class ServoBus:
 
             # Send the packet to the servo(s)
             self.serial_conn.write(servo_packet)
+            self.serial_conn.flush()
 
-            # If using RS-485, the hardware may echo back our transmitted bytes.
-            # Discard them so they don't interfere with reading the response.
-            if self.discard_echo:
-                self.serial_conn.read(len(servo_packet))
+            # Disable TX
+            if self._tx_disable:
+                self._tx_disable.drive_high()
+
+            # Since RX was enabled, we must have received the echo.
+            # Read and discard it.
+            if self._rx_disable:
+                 read_values = self.serial_conn.read(len(servo_packet))
+                 print(f"Read values: {read_values}")
+            elif self.discard_echo:
+                 self.serial_conn.read(len(servo_packet))
 
     def _receive_packet(self) -> types._ServoPacket:
         """
@@ -157,6 +180,12 @@ class ServoBus:
 
         """
         with self._serial_conn_lock:
+            # Ensure RX is enabled (it should be from _send_packet, but just in case)
+            if self._rx_disable:
+                self._rx_disable.drive_low()
+            if self._tx_disable:
+                self._tx_disable.drive_high()
+            
             # Read the 2-byte synchronization header
             # Search for the header to be robust against noise or partial echoes
             header_found = False
