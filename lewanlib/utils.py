@@ -1,9 +1,8 @@
 """
-Utility functions and conversions used by the library.
 
 This module contains pure, stateless helper functions that don't depend on hardware.
 They handle unit conversions, data validation, and protocol-level calculations.
-These functions are easy to test and can be reused in other servo-related projects.
+
 """
 from typing import Union
 

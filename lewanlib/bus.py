@@ -243,6 +243,8 @@ class ServoBus:
         time_s - time to move in seconds
         wait: Whether or not to wait time_s seconds after sending the command.
         command: Acceptable values are _SERVO_MOVE_TIME_WRITE, or _SERVO_MOVE_TIME_WAIT_WRITE.
+
+        Moves to angle over specified time.
         """
         if command not in {constants._SERVO_MOVE_TIME_WRITE, constants._SERVO_MOVE_TIME_WAIT_WRITE}:
             raise ValueError(
@@ -268,6 +270,8 @@ class ServoBus:
         angle_degrees - target angle in degrees
         time_s - time to move in seconds
         wait: Whether or not to wait time_s seconds after sending the command.
+
+        Moves to angle over specified time (immediate).
         """
         return self._move_time_write(servo_id, angle_degrees, time_s,
                                      constants._SERVO_MOVE_TIME_WRITE, wait)
@@ -278,6 +282,8 @@ class ServoBus:
         servo_id
         angle_degrees - target angle in degrees
         time_s - time to move in seconds
+
+        Queues a move command that will not start until move_start() is called.
         """
         return self._move_time_write(servo_id, angle_degrees, time_s,
                                      constants._SERVO_MOVE_TIME_WAIT_WRITE, False)

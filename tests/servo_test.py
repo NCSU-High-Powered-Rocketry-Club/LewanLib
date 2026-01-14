@@ -1,6 +1,6 @@
 from lewanlib.bus import ServoBus
 
-port = "COM3"
+port = "/dev/ttyAMA0"
 servo_id = 1
 
 with ServoBus(port=port, baudrate=115200) as bus:
