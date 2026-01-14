@@ -41,13 +41,15 @@ class ServoBus:
             on_enter_power_on: bool = False,    # Power on all servos on context enter
             on_exit_power_off: bool = True,     # Power off all servos on context exit
             discard_echo: bool = True,          # Discard echoed bytes after sending
-            verify_checksum: bool = True        # Verify checksums on received packets
+            verify_checksum: bool = True,       # Verify checksums on received packets
+            retry_count: int = 3                # Number of retries for read operations
     ) -> None:
         
         self.on_enter_power_on = on_enter_power_on
         self.on_exit_power_off = on_exit_power_off
         self.discard_echo = discard_echo
         self.verify_checksum = verify_checksum
+        self.retry_count = retry_count
 
         # Set up the serial connection
         if serial_conn:
@@ -156,23 +158,53 @@ class ServoBus:
         """
         with self._serial_conn_lock:
             # Read the 2-byte synchronization header
-            header = self.serial_conn.read(2)
-            if header != constants._PACKET_HEADER:
-                raise ServoBusError(
-                    f'Expected header {repr(constants._PACKET_HEADER)}; '
-                    f'received header {repr(header)}.')
+            # Search for the header to be robust against noise or partial echoes
+            header_found = False
+            # Try to find the header within a reasonable number of bytes
+            # Increased to 2048 to handle noisy lines or large buffers
+            bytes_scanned = 0
+            max_scan = 2048
+            
+            while bytes_scanned < max_scan:
+                b = self.serial_conn.read(1)
+                if not b:
+                    # Timeout
+                    break
+                bytes_scanned += 1
+                
+                if b == constants._PACKET_HEADER[0:1]:
+                    # Found first byte, check second
+                    b2 = self.serial_conn.read(1)
+                    if not b2:
+                        break # Timeout
+                    bytes_scanned += 1
+                    
+                    if b2 == constants._PACKET_HEADER[1:2]:
+                        header_found = True
+                        break
+            
+            if not header_found:
+                raise ServoBusError(f'Timed out or failed to find packet header after scanning {bytes_scanned} bytes.')
 
             # Read ID, Length, and Command (3 bytes)
-            servo_id, length, command = self.serial_conn.read(3)
+            data = self.serial_conn.read(3)
+            if len(data) < 3:
+                raise ServoBusError('Timed out reading packet metadata.')
+            servo_id, length, command = data
             
             # Read parameters: (length - 3) bytes
             # The "length" field includes Command + Parameters + Checksum, so we subtract 3
             # to get just the parameter count.
             param_count = length - 3
             parameters = self.serial_conn.read(param_count)
+            if len(parameters) < param_count:
+                raise ServoBusError('Timed out reading packet parameters.')
             
             # Read and verify checksum (1 byte)
-            checksum = self.serial_conn.read(1)[0]
+            checksum_bytes = self.serial_conn.read(1)
+            if len(checksum_bytes) < 1:
+                raise ServoBusError('Timed out reading packet checksum.')
+            checksum = checksum_bytes[0]
 
         # Verify checksum to detect corruption
         if self.verify_checksum:
@@ -201,25 +233,43 @@ class ServoBus:
         Raises ServoBusError on checksum failure or protocol errors
 
         """
-        with self._serial_conn_lock:
-            self._send_packet(servo_id, command, parameters=parameters)
-            response = self._receive_packet()
+        last_error = None
+        # Try at least once, plus retries
+        for attempt in range(self.retry_count + 1):
+            try:
+                with self._serial_conn_lock:
+                    self._send_packet(servo_id, command, parameters=parameters)
+                    response = self._receive_packet()
 
-        # Make sure received packet servo ID matches (so we got data from the right servo)
-        if response.servo_id != servo_id:
-            raise ServoBusError(
-                f'Received packet servo ID ({response.servo_id}) does not '
-                f'match sent packet servo ID ({servo_id}).'
-            )
+                # Make sure received packet servo ID matches (so we got data from the right servo)
+                if response.servo_id != servo_id:
+                    raise ServoBusError(
+                        f'Received packet servo ID ({response.servo_id}) does not '
+                        f'match sent packet servo ID ({servo_id}).'
+                    )
 
-        # Make sure received packet command matches (so we got the right response)
-        if response.command != command:
-            raise ServoBusError(
-                f'Received packet command ({response.command}) does not '
-                f'match sent packet command ({command}).'
-            )
+                # Make sure received packet command matches (so we got the right response)
+                if response.command != command:
+                    raise ServoBusError(
+                        f'Received packet command ({response.command}) does not '
+                        f'match sent packet command ({command}).'
+                    )
 
-        return response
+                return response
+
+            except ServoBusError as e:
+                last_error = e
+                # If this wasn't the last attempt, we can retry
+                if attempt < self.retry_count:
+                    # Optional: small delay to let bus settle
+                    time.sleep(0.01)
+                    continue
+        
+        # If we exhausted all retries, raise the last error
+        if last_error:
+            raise last_error
+        # Should not be reachable
+        raise ServoBusError("Unknown error in _send_and_receive_packet")
 
     def get_servo(self, servo_id: int, name: Optional[str] = None):
         """
@@ -259,9 +309,6 @@ class ServoBus:
 
         params = constants._2_UNSIGNED_SHORTS_STRUCT.pack(angle, time_ms)
         self._send_packet(servo_id, command, params)
-
-        if wait:
-            time.sleep(time_s)
 
     def move_time_write(self, servo_id: int, angle_degrees: types.Real, time_s: types.Real,
                         wait: bool = False) -> None:
