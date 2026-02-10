@@ -2,8 +2,9 @@
     Unit tests for bus module
 """
 
+import pytest
 from lewanlib import constants
-from bus import ServoBus
+from lewanlib.bus import ServoBus
 import time
 
 def test_move_time_write():

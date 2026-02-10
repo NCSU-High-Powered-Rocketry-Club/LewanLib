@@ -10,13 +10,13 @@ for a different servo). Some commands also cause the servo to send a response pa
 
 """
 from typing import Optional, Union, Tuple, List
-import time
+import time, numpy as np
 from multiprocessing import RLock
 
 import serial  # type: ignore
 
-from . import constants, utils, types
-
+from lewanlib import constants, utils, types
+from lewanlib.servo_data_packet import ServoDataPacket
 
 class ServoBusError(Exception):
     """
@@ -806,3 +806,14 @@ class ServoBus:
         over_temp = bool(params & 1)
 
         return stalled, over_voltage, over_temp
+
+    def return_data_packet(self, servo_id: int) -> ServoDataPacket:
+        packet = ServoDataPacket(
+            servo_id = servo_id,
+            current_position = self.pos_read(),
+            velocity = np.mean(self.velocity_read()),
+            angel_offset = self.angle_offset_read(),
+            current_temp = self.temp_read(),
+            voltage = self.vin_read(),
+        )
+        return packet

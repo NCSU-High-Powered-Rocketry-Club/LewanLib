@@ -22,15 +22,10 @@ with ServoBus(port=port, baudrate=115200, on_exit_power_off=False) as bus:
     servo.move_time_write(120.0, 0.0, wait=False)
     time.sleep(0.05) 
     
-    # print("move time read ", servo.move_time_wait_read())
-    servo.move_start()
+    print("move time read ", servo.move_time_read())
     time.sleep(0.05)
     servo.move_stop()
-    
-    servo.move_time_wait_write(11.0, 0.0)
-    servo.move_start()
-    # servo.move_stop()
-    # servo.set_powered(False)
+
 
     # Read tests
     print("angle offset ", servo.angle_offset_read())

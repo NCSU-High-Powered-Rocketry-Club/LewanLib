@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Optional
 # depends on Servo (in its get_servo() method).
 if TYPE_CHECKING:
     from .bus import ServoBus
+    from .servo_data_packet import ServoDataPacket
 
 
 class Servo:
@@ -235,3 +236,9 @@ class Servo:
         Read which errors currently trigger the LED (stalled, over_voltage, over_temp).
         """
         return self.bus.led_error_read(self.id)
+
+    def return_data_packet(self) -> ServoDataPacket:
+        """
+        Read the servo's current data packet.
+        """
+        return self.bus.return_data_packet(self.id)

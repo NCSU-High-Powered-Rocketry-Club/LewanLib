@@ -14,7 +14,10 @@ authors = [
 license = {text = "MIT"}
 
 dependencies = [
+    "msgspec>=0.20.0",
+    "numpy>=2.2.6",
     "pyserial>=3.5",
+    "pytest>=9.0.1",
 ]
 
 [project.optional-dependencies]
