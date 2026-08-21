@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING, Optional
 # depends on Servo (in its get_servo() method).
 if TYPE_CHECKING:
     from .bus import ServoBus
-    from .servo_data_packet import ServoDataPacket
 
+from .servo_data_packet import ServoDataPacket
 
 class Servo:
     """
@@ -79,12 +79,6 @@ class Servo:
         Move to angle at a specific speed (degrees/second).
         """
         self.bus.move_speed_write(self.id, *args, **kwargs)
-
-    def velocity_read(self, *args, **kwargs) -> float:
-        """
-        Estimate current velocity by sampling position twice with a delay.
-        """
-        return self.bus.velocity_read(self.id, *args, **kwargs)[0]
 
     def move_start(self) -> None:
         """

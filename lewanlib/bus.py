@@ -9,7 +9,7 @@ and each servo (device) either executes the command (if it's addressed) or ignor
 for a different servo). Some commands also cause the servo to send a response packet.
 
 """
-from typing import Optional, Union, Tuple, List
+from typing import Optional, Union
 import time, numpy as np
 from multiprocessing import RLock
 
@@ -44,7 +44,7 @@ class ServoBus:
             verify_checksum: bool = True,       # Verify checksums on received packets
             retry_count: int = 3                # Number of retries for read operations
     ) -> None:
-        
+
         self.on_enter_power_on = on_enter_power_on
         self.on_exit_power_off = on_exit_power_off
         self.discard_echo = discard_echo
@@ -120,7 +120,7 @@ class ServoBus:
 
         if parameters is None:
             parameters = b''
-        
+
         # Build the packet: [Header(2)] [ID] [Length] [Command] [Parameters...] [Checksum]
         servo_packet = bytearray(constants._PACKET_HEADER)
         servo_packet.append(servo_id)
@@ -164,25 +164,25 @@ class ServoBus:
             # Increased to 2048 to handle noisy lines or large buffers
             bytes_scanned = 0
             max_scan = 2048
-            
+
             while bytes_scanned < max_scan:
                 b = self.serial_conn.read(1)
                 if not b:
                     # Timeout
                     break
                 bytes_scanned += 1
-                
+
                 if b == constants._PACKET_HEADER[0:1]:
                     # Found first byte, check second
                     b2 = self.serial_conn.read(1)
                     if not b2:
                         break # Timeout
                     bytes_scanned += 1
-                    
+
                     if b2 == constants._PACKET_HEADER[1:2]:
                         header_found = True
                         break
-            
+
             if not header_found:
                 raise ServoBusError(f'Timed out or failed to find packet header after scanning {bytes_scanned} bytes.')
 
@@ -191,7 +191,7 @@ class ServoBus:
             if len(data) < 3:
                 raise ServoBusError('Timed out reading packet metadata.')
             servo_id, length, command = data
-            
+
             # Read parameters: (length - 3) bytes
             # The "length" field includes Command + Parameters + Checksum, so we subtract 3
             # to get just the parameter count.
@@ -199,7 +199,7 @@ class ServoBus:
             parameters = self.serial_conn.read(param_count)
             if len(parameters) < param_count:
                 raise ServoBusError('Timed out reading packet parameters.')
-            
+
             # Read and verify checksum (1 byte)
             checksum_bytes = self.serial_conn.read(1)
             if len(checksum_bytes) < 1:
@@ -264,7 +264,7 @@ class ServoBus:
                     # Optional: small delay to let bus settle
                     time.sleep(0.01)
                     continue
-        
+
         # If we exhausted all retries, raise the last error
         if last_error:
             raise last_error
@@ -275,7 +275,7 @@ class ServoBus:
         """
         servo_id - Target servo ID (0-253)
         name - Optional name for the servo (for easier identification)
-        
+
         returns a Servo object representing the servo with the given ID.
         """
         # Local import to avoid circular imports
@@ -310,6 +310,9 @@ class ServoBus:
         params = constants._2_UNSIGNED_SHORTS_STRUCT.pack(angle, time_ms)
         self._send_packet(servo_id, command, params)
 
+        if wait:
+            time.sleep(time_s)
+
     def move_time_write(self, servo_id: int, angle_degrees: types.Real, time_s: types.Real,
                         wait: bool = False) -> None:
         """
@@ -337,7 +340,7 @@ class ServoBus:
 
     def _move_time_read(
             self, servo_id: int, command: int
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         """
         servo_id:
         Returns the parameters set by the last call to move_time_write().
@@ -357,7 +360,7 @@ class ServoBus:
 
         return angle_degrees, time_s
 
-    def move_time_read(self, servo_id: int) -> Tuple[float, float]:
+    def move_time_read(self, servo_id: int) -> tuple[float, float]:
         """
         Read the move target and duration that was set.
 
@@ -365,7 +368,7 @@ class ServoBus:
         """
         return self._move_time_read(servo_id, command=constants._SERVO_MOVE_TIME_READ)
 
-    def move_time_wait_read(self, servo_id: int) -> Tuple[float, float]:
+    def move_time_wait_read(self, servo_id: int) -> tuple[float, float]:
         """
         Read the move target and duration for a blocking move.
 
@@ -384,35 +387,14 @@ class ServoBus:
         moves to angle at a specific speed (degrees/second).
         """
 
-        current_angle = self.pos_read(servo_id)
-        error = abs(angle_degrees - current_angle)
-        time_s = error / speed_dps
+        if speed_dps > 0:
+            current_angle = self.pos_read(servo_id)
+            error = abs(angle_degrees - current_angle)
+            time_s = error / speed_dps
+        else:
+            time_s = 0
 
-        self.move_time_write(servo_id, angle_degrees, time_s, wait=wait)
-
-    def velocity_read(
-            self, *servo_ids: int, period_s: types.Real = 0.1
-    ) -> List[float]:
-        """
-        servo_ids - One or more servo IDs to read velocity from.
-        period_s - Time interval over which to measure velocity (seconds).
-
-        Estimate current velocity by sampling position twice with a delay.
-        """
-
-        measurements0 = [(time.monotonic(), self.pos_read(servo_id)) for
-                         servo_id in servo_ids]
-        time.sleep(period_s)
-        measurements1 = [(time.monotonic(), self.pos_read(servo_id)) for
-                         servo_id in servo_ids]
-
-        velocities = []
-        for measurement0, measurement1 in zip(measurements0, measurements1):
-            time0, position0 = measurement0
-            time1, position1 = measurement1
-            velocities.append((position1 - position0) / (time1 - time0))
-
-        return velocities
+        self.move_time_write(servo_id, angle_degrees, time_s)
 
     def move_start(self, servo_id: int) -> None:
         """
@@ -519,7 +501,7 @@ class ServoBus:
         params = constants._2_UNSIGNED_SHORTS_STRUCT.pack(min_angle, max_angle)
         self._send_packet(servo_id, constants._SERVO_ANGLE_LIMIT_WRITE, params)
 
-    def angle_limit_read(self, servo_id: int) -> Tuple[float, float]:
+    def angle_limit_read(self, servo_id: int) -> tuple[float, float]:
         """
         Read the servo's angle limits.
 
@@ -559,7 +541,7 @@ class ServoBus:
         min_voltage_mv = scrub_voltage(min_voltage)
         max_voltage_mv = scrub_voltage(max_voltage)
 
-        if min_voltage_mv > max_voltage_mv:
+        if min_voltage_mv >= max_voltage_mv:
             raise ValueError(
                 f'min_voltage must be less than max_voltage; got min_voltage={min_voltage} (==> min_voltage_mv={min_voltage_mv}) '
                 f'and max_voltage={max_voltage} (==> max_voltage_mv={max_voltage_mv}).')
@@ -567,7 +549,7 @@ class ServoBus:
         params = constants._2_UNSIGNED_SHORTS_STRUCT.pack(min_voltage_mv, max_voltage_mv)
         self._send_packet(servo_id, constants._SERVO_VIN_LIMIT_WRITE, params)
 
-    def vin_limit_read(self, servo_id: int) -> Tuple[float, float]:
+    def vin_limit_read(self, servo_id: int) -> tuple[float, float]:
         """
         Read the servo's voltage limits.
 
@@ -593,7 +575,7 @@ class ServoBus:
         units - 'C' for Celsius or 'F' for Fahrenheit.
 
         set the maximum temperature limit for the servo.
-        returns error if temp is out of range [50°C, 100°C] or [122°F, 212°F].
+        Clamps temp to the range [50°C, 100°C] or [122°F, 212°F].
 
         """
 
@@ -702,7 +684,7 @@ class ServoBus:
             1 if mode == 'motor' else 0, speed)
         self._send_packet(servo_id, constants._SERVO_OR_MOTOR_MODE_WRITE, params)
 
-    def mode_read(self, servo_id: int) -> Tuple[str, Optional[int]]:
+    def mode_read(self, servo_id: int) -> tuple[str, Optional[int]]:
         """
         servo_id:
         returns the current mode and speed setting.
@@ -792,7 +774,7 @@ class ServoBus:
         params = bytes((params,))
         self._send_packet(servo_id, constants._SERVO_LED_ERROR_WRITE, params)
 
-    def led_error_read(self, servo_id: int) -> Tuple[bool, bool, bool]:
+    def led_error_read(self, servo_id: int) -> tuple[bool, bool, bool]:
         """
         Read which error conditions trigger the LED.
 
@@ -810,10 +792,9 @@ class ServoBus:
     def return_data_packet(self, servo_id: int) -> ServoDataPacket:
         packet = ServoDataPacket(
             servo_id = servo_id,
-            current_position = self.pos_read(),
-            velocity = np.mean(self.velocity_read()),
-            angel_offset = self.angle_offset_read(),
-            current_temp = self.temp_read(),
-            voltage = self.vin_read(),
+            current_position = self.pos_read(servo_id),
+            angle_offset = self.angle_offset_read(servo_id),
+            current_temp = self.temp_read(servo_id),
+            voltage = self.vin_read(servo_id),
         )
         return packet
