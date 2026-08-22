@@ -9,22 +9,14 @@ and each servo (device) either executes the command (if it's addressed) or ignor
 for a different servo). Some commands also cause the servo to send a response packet.
 
 """
-from typing import Optional, Union
-import time, numpy as np
+from typing import Optional, Union, Tuple
+import time
 from multiprocessing import RLock
 
-import serial  # type: ignore
+import serial
 
 from lewanlib import constants, utils, types
 from lewanlib.servo_data_packet import ServoDataPacket
-
-class ServoBusError(Exception):
-    """
-    Exception raised when there's an error on the servo bus.
-
-    """
-    pass
-
 
 class ServoBus:
     """
@@ -184,12 +176,12 @@ class ServoBus:
                         break
 
             if not header_found:
-                raise ServoBusError(f'Timed out or failed to find packet header after scanning {bytes_scanned} bytes.')
+                raise Exception(f'Timed out or failed to find packet header after scanning {bytes_scanned} bytes.')
 
             # Read ID, Length, and Command (3 bytes)
             data = self.serial_conn.read(3)
             if len(data) < 3:
-                raise ServoBusError('Timed out reading packet metadata.')
+                raise Exception('Timed out reading packet metadata.')
             servo_id, length, command = data
 
             # Read parameters: (length - 3) bytes
@@ -198,12 +190,12 @@ class ServoBus:
             param_count = length - 3
             parameters = self.serial_conn.read(param_count)
             if len(parameters) < param_count:
-                raise ServoBusError('Timed out reading packet parameters.')
+                raise Exception('Timed out reading packet parameters.')
 
             # Read and verify checksum (1 byte)
             checksum_bytes = self.serial_conn.read(1)
             if len(checksum_bytes) < 1:
-                raise ServoBusError('Timed out reading packet checksum.')
+                raise Exception('Timed out reading packet checksum.')
             checksum = checksum_bytes[0]
 
         # Verify checksum to detect corruption
@@ -211,7 +203,7 @@ class ServoBus:
             actual_checksum = utils._calculate_checksum(servo_id, length, command,
                                                        parameters)
             if checksum != actual_checksum:
-                raise ServoBusError(
+                raise Exception(
                     f'Checksum failed for received packet! '
                     f'Received checksum = {checksum}. '
                     f'Actual checksum = {actual_checksum}.'
@@ -243,21 +235,21 @@ class ServoBus:
 
                 # Make sure received packet servo ID matches (so we got data from the right servo)
                 if response.servo_id != servo_id:
-                    raise ServoBusError(
+                    raise Exception(
                         f'Received packet servo ID ({response.servo_id}) does not '
                         f'match sent packet servo ID ({servo_id}).'
                     )
 
                 # Make sure received packet command matches (so we got the right response)
                 if response.command != command:
-                    raise ServoBusError(
+                    raise Exception(
                         f'Received packet command ({response.command}) does not '
                         f'match sent packet command ({command}).'
                     )
 
                 return response
 
-            except ServoBusError as e:
+            except Exception as e:
                 last_error = e
                 # If this wasn't the last attempt, we can retry
                 if attempt < self.retry_count:
@@ -269,7 +261,7 @@ class ServoBus:
         if last_error:
             raise last_error
         # Should not be reachable
-        raise ServoBusError("Unknown error in _send_and_receive_packet")
+        raise Exception("Unknown error in _send_and_receive_packet")
 
     def get_servo(self, servo_id: int, name: Optional[str] = None):
         """
@@ -340,7 +332,7 @@ class ServoBus:
 
     def _move_time_read(
             self, servo_id: int, command: int
-    ) -> tuple[float, float]:
+    ) -> Tuple[float, float]:
         """
         servo_id:
         Returns the parameters set by the last call to move_time_write().
@@ -360,7 +352,7 @@ class ServoBus:
 
         return angle_degrees, time_s
 
-    def move_time_read(self, servo_id: int) -> tuple[float, float]:
+    def move_time_read(self, servo_id: int) -> Tuple[float, float]:
         """
         Read the move target and duration that was set.
 
@@ -368,7 +360,7 @@ class ServoBus:
         """
         return self._move_time_read(servo_id, command=constants._SERVO_MOVE_TIME_READ)
 
-    def move_time_wait_read(self, servo_id: int) -> tuple[float, float]:
+    def move_time_wait_read(self, servo_id: int) -> Tuple[float, float]:
         """
         Read the move target and duration for a blocking move.
 
@@ -385,16 +377,18 @@ class ServoBus:
         speed_dps - speed in degrees per second
 
         moves to angle at a specific speed (degrees/second).
+        returns error if speed_dps <= 0.
         """
 
-        if speed_dps > 0:
-            current_angle = self.pos_read(servo_id)
-            error = abs(angle_degrees - current_angle)
-            time_s = error / speed_dps
-        else:
-            time_s = 0
+        if speed_dps <= 0:
+            raise ValueError(
+                f'speed_dps must be greater than 0; got {speed_dps}.')
 
-        self.move_time_write(servo_id, angle_degrees, time_s)
+        current_angle = self.pos_read(servo_id)
+        error = abs(angle_degrees - current_angle)
+        time_s = error / speed_dps
+
+        self.move_time_write(servo_id, angle_degrees, time_s, wait=wait)
 
     def move_start(self, servo_id: int) -> None:
         """
@@ -501,7 +495,7 @@ class ServoBus:
         params = constants._2_UNSIGNED_SHORTS_STRUCT.pack(min_angle, max_angle)
         self._send_packet(servo_id, constants._SERVO_ANGLE_LIMIT_WRITE, params)
 
-    def angle_limit_read(self, servo_id: int) -> tuple[float, float]:
+    def angle_limit_read(self, servo_id: int) -> Tuple[float, float]:
         """
         Read the servo's angle limits.
 
@@ -533,13 +527,13 @@ class ServoBus:
 
         """
 
-        def scrub_voltage(v: types.Real) -> int:
+        def clamp_voltage(v: types.Real) -> int:
             # Convert to millivolts and clamp to valid range
             v = int(round(v * 1000))
             return min(max(4500, v), 12000)
 
-        min_voltage_mv = scrub_voltage(min_voltage)
-        max_voltage_mv = scrub_voltage(max_voltage)
+        min_voltage_mv = clamp_voltage(min_voltage)
+        max_voltage_mv = clamp_voltage(max_voltage)
 
         if min_voltage_mv >= max_voltage_mv:
             raise ValueError(
@@ -549,7 +543,7 @@ class ServoBus:
         params = constants._2_UNSIGNED_SHORTS_STRUCT.pack(min_voltage_mv, max_voltage_mv)
         self._send_packet(servo_id, constants._SERVO_VIN_LIMIT_WRITE, params)
 
-    def vin_limit_read(self, servo_id: int) -> tuple[float, float]:
+    def vin_limit_read(self, servo_id: int) -> Tuple[float, float]:
         """
         Read the servo's voltage limits.
 
@@ -575,19 +569,22 @@ class ServoBus:
         units - 'C' for Celsius or 'F' for Fahrenheit.
 
         set the maximum temperature limit for the servo.
-        Clamps temp to the range [50°C, 100°C] or [122°F, 212°F].
+        returns error if temp is out of range [50°C, 100°C] or [122°F, 212°F].
 
         """
 
         units = utils._validate_temp_units(units)
 
-        if units == 'F':
-            temp = utils._fahrenheit_to_celsius(temp)
+        temp_c = utils._fahrenheit_to_celsius(temp) if units == 'F' else temp
 
-        temp = int(round(temp))
-        temp = min(max(50, temp), 100)
+        if temp_c < 50 or temp_c > 100:
+            raise ValueError(
+                f'temp must be in range [50, 100] degrees C ([122, 212] degrees F); '
+                f'got temp={temp} (==> temp_c={temp_c}) degrees {units}.')
 
-        self._send_packet(servo_id, constants._SERVO_TEMP_MAX_LIMIT_WRITE, bytes((temp,)))
+        temp_c = int(round(temp_c))
+
+        self._send_packet(servo_id, constants._SERVO_TEMP_MAX_LIMIT_WRITE, bytes((temp_c,)))
 
     def temp_max_limit_read(self, servo_id: int,
                             units: str = 'F') -> float:
@@ -684,7 +681,7 @@ class ServoBus:
             1 if mode == 'motor' else 0, speed)
         self._send_packet(servo_id, constants._SERVO_OR_MOTOR_MODE_WRITE, params)
 
-    def mode_read(self, servo_id: int) -> tuple[str, Optional[int]]:
+    def mode_read(self, servo_id: int) -> Tuple[str, Optional[int]]:
         """
         servo_id:
         returns the current mode and speed setting.
@@ -774,7 +771,7 @@ class ServoBus:
         params = bytes((params,))
         self._send_packet(servo_id, constants._SERVO_LED_ERROR_WRITE, params)
 
-    def led_error_read(self, servo_id: int) -> tuple[bool, bool, bool]:
+    def led_error_read(self, servo_id: int) -> Tuple[bool, bool, bool]:
         """
         Read which error conditions trigger the LED.
 
@@ -790,6 +787,8 @@ class ServoBus:
         return stalled, over_voltage, over_temp
 
     def return_data_packet(self, servo_id: int) -> ServoDataPacket:
+        """
+        """
         packet = ServoDataPacket(
             servo_id = servo_id,
             current_position = self.pos_read(servo_id),
