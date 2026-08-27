@@ -377,8 +377,7 @@ class ServoBus:
         speed_dps - speed in degrees per second
 
         moves to angle at a specific speed (degrees/second).
-        returns error if speed_dps <= 0.
-        """
+        Raises ValueError if speed_dps <= 0.
 
         if speed_dps <= 0:
             raise ValueError(
