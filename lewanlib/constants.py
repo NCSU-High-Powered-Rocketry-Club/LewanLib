@@ -1,11 +1,5 @@
 """
-Module containing constants and packet/struct definitions for the LewanSoul servo protocol.
-
-This module centralizes all magic numbers, protocol constants, and binary struct formats
-used throughout the library. By keeping them in one place, we make the code easier to
-maintain and modify if the protocol changes.
-
-See: https://images-na.ssl-images-amazon.com/images/I/71WyZDfQwkL.pdf (LewanSoul protocol spec)
+https://images-na.ssl-images-amazon.com/images/I/71WyZDfQwkL.pdf (LewanSoul protocol spec)
 """
 import struct
 

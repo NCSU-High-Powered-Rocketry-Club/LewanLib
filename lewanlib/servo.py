@@ -2,18 +2,13 @@
 This module provides the Servo class, which is a convenience wrapper that remembers
 a specific servo's ID and automatically includes it in all commands.
 
-Instead of writing servo_bus.move_time_write(servo_id=1, angle=120, time=1), you can write
-servo.move_time_write(120, 1).
-
 """
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Tuple
 
-# TYPE_CHECKING prevents circular imports at runtime while allowing type hints
-# to work properly. Servo depends on ServoBus (for type hints), and ServoBus
-# depends on Servo (in its get_servo() method).
 if TYPE_CHECKING:
     from .bus import ServoBus
-    from .servo_data_packet import ServoDataPacket
+
+from .servo_data_packet import ServoDataPacket
 
 
 class Servo:
@@ -62,13 +57,13 @@ class Servo:
         """
         self.bus.move_time_wait_write(self.id, *args, **kwargs)
 
-    def move_time_read(self) -> tuple:
+    def move_time_read(self) -> Tuple[float, float]:
         """
         Read the angle+time from the last move_time_write() command.
         """
         return self.bus.move_time_read(self.id)
 
-    def move_time_wait_read(self) -> tuple:
+    def move_time_wait_read(self) -> Tuple[float, float]:
         """
         Read the queued angle+time from the last move_time_wait_write() command.
         """
@@ -79,12 +74,6 @@ class Servo:
         Move to angle at a specific speed (degrees/second).
         """
         self.bus.move_speed_write(self.id, *args, **kwargs)
-
-    def velocity_read(self, *args, **kwargs) -> float:
-        """
-        Estimate current velocity by sampling position twice with a delay.
-        """
-        return self.bus.velocity_read(self.id, *args, **kwargs)[0]
 
     def move_start(self) -> None:
         """
@@ -133,7 +122,7 @@ class Servo:
         """
         self.bus.angle_limit_write(self.id, *args, **kwargs)
 
-    def angle_limit_read(self) -> tuple:
+    def angle_limit_read(self) -> Tuple[float, float]:
         """
         Read the angle limits (min_angle, max_angle) in degrees.
         """
@@ -145,7 +134,7 @@ class Servo:
         """
         self.bus.vin_limit_write(self.id, *args, **kwargs)
 
-    def vin_limit_read(self) -> tuple:
+    def vin_limit_read(self) -> Tuple[float, float]:
         """
         Read the voltage limits (min_v, max_v) in Volts.
         """
@@ -191,7 +180,7 @@ class Servo:
         """
         return self.bus.mode_write(self.id, *args, **kwargs)
 
-    def mode_read(self) -> tuple:
+    def mode_read(self) -> Tuple[str, Optional[int]]:
         """
         Read current mode and speed setting.
         """
@@ -231,7 +220,7 @@ class Servo:
         """
         return self.bus.led_error_write(self.id, *args, **kwargs)
 
-    def led_error_read(self) -> tuple:
+    def led_error_read(self) -> Tuple[bool, bool, bool]:
         """
         Read which errors currently trigger the LED (stalled, over_voltage, over_temp).
         """

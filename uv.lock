@@ -46,6 +46,7 @@ dependencies = [
     { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pyserial" },
     { name = "pytest" },
+    { name = "sshkeyboard" },
 ]
 
 [package.optional-dependencies]
@@ -60,6 +61,7 @@ requires-dist = [
     { name = "pyserial", specifier = ">=3.5" },
     { name = "pytest", specifier = ">=9.0.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0" },
+    { name = "sshkeyboard", specifier = ">=2.3.1" },
 ]
 provides-extras = ["dev"]
 
@@ -318,6 +320,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/07/56/f013048ac4bc4c1d9be45afd4ab209ea62822fb1598f40687e6bf45dcea4/pytest-9.0.1.tar.gz", hash = "sha256:3e9c069ea73583e255c3b21cf46b8d3c56f6e3a1a8f6da94ccb0fcf57b9d73c8", size = 1564125, upload-time = "2025-11-12T13:05:09.333Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0b/8b/6300fb80f858cda1c51ffa17075df5d846757081d11ab4aa35cef9e6258b/pytest-9.0.1-py3-none-any.whl", hash = "sha256:67be0030d194df2dfa7b556f2e56fb3c3315bd5c8822c6951162b92b32ce7dad", size = 373668, upload-time = "2025-11-12T13:05:07.379Z" },
+]
+
+[[package]]
+name = "sshkeyboard"
+version = "2.3.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/7b/d78e6ade4bb4680d0a610ed02047c4de04db62de8864193bf842c59c47cb/sshkeyboard-2.3.1.tar.gz", hash = "sha256:3273be5b2fde7f8d2ea075d40e1981104ac0928d7b77a848756f08d0e66a3d9f", size = 20296, upload-time = "2021-10-28T11:37:08.07Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ea/b6/d24c6184348a91386e5ca5fe3e46668ef978dd694ff98574ef0dd5904522/sshkeyboard-2.3.1-py3-none-any.whl", hash = "sha256:05ec2cb116bd9c4a7c17d7add4a5af74e12eb2add24c110608cb90f6812692f9", size = 12870, upload-time = "2021-10-28T11:37:05.566Z" },
 ]
 
 [[package]]

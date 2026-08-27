@@ -1,41 +1,38 @@
 import time
+import msgspec
 from lewanlib.bus import ServoBus
+from sshkeyboard import listen_keyboard
 
+# Servo setup
 port = "/dev/ttyAMA0"
 servo_id = 1
+current_extension = 10  # starting position
 
+# Callback for key presses
+def press(key):
+    global current_extension
+    current_extension = servo.pos_read() 
+    if key == "right":
+        current_extension += 20
+        servo.move_time_write(current_extension, .25, wait=False)
+        print(f"Moved up to {current_extension}")
+    elif key == "left":
+        current_extension -= 20
+        servo.move_time_write(current_extension, .25, wait=False)
+        print(f"Moved down to {current_extension}")
+    elif key == "q":
+        print("Exiting...")
+        return False  # stop listener
+
+    packet = servo.return_data_packet()
+    print("Servo data packet:")
+    print(msgspec.structs.asdict(packet))
+
+# Initialize servo bus
 with ServoBus(port=port, baudrate=115200, on_exit_power_off=False) as bus:
-    print("here")
     servo = bus.get_servo(servo_id)
-    # Write tests
-    # servo.angle_offset_adjust(5.0)
-    # servo.angle_offset_write()
-    # servo.angle_limit_write(10.0, 230.0)
-    # servo.vin_limit_write(6.0, 12.0)
-    # servo.temp_max_limit_write(75.0)
-    servo.id_write(servo_id)  # Re-write same ID for test
-    print("Rewrote id")
-    
-    # Move tests 
+    servo.id_write(servo_id)
     servo.set_powered(True)
-    # Don't wait for the full move (wait=False), but give a tiny delay for bus stability
-    servo.move_time_write(120.0, 0.0, wait=False)
-    time.sleep(0.05) 
-    
-    print("move time read ", servo.move_time_read())
-    time.sleep(0.05)
-    servo.move_stop()
 
-
-    # Read tests
-    print("angle offset ", servo.angle_offset_read())
-    print("angle limit ", servo.angle_limit_read())
-    print("vin limit ", servo.vin_limit_read())
-    print("temp max limit ", servo.temp_max_limit_read())
-    print("temp read c ", servo.temp_read(units='C'))
-    print(servo.temp_read(units='F'))
-    print("voltage in read ", servo.vin_read())
-    print("servo pos read ", servo.pos_read())
-    print(servo.mode_read())
-
-    servo.set_powered(False)
+    print("Use left and right arrow keys to move servo. Press 'q' to quit.")
+    listen_keyboard(on_press=press)

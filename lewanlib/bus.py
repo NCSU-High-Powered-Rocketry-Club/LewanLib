@@ -9,22 +9,17 @@ and each servo (device) either executes the command (if it's addressed) or ignor
 for a different servo). Some commands also cause the servo to send a response packet.
 
 """
-from typing import Optional, Union, Tuple, List
-import time, numpy as np
+from typing import Optional, Union, Tuple
+import time
 from multiprocessing import RLock
 
-import serial  # type: ignore
+import serial
 
 from lewanlib import constants, utils, types
 from lewanlib.servo_data_packet import ServoDataPacket
 
 class ServoBusError(Exception):
-    """
-    Exception raised when there's an error on the servo bus.
-
-    """
-    pass
-
+    """Exception raised for LewanSoul servo bus protocol and communication errors."""
 
 class ServoBus:
     """
@@ -44,7 +39,7 @@ class ServoBus:
             verify_checksum: bool = True,       # Verify checksums on received packets
             retry_count: int = 3                # Number of retries for read operations
     ) -> None:
-        
+
         self.on_enter_power_on = on_enter_power_on
         self.on_exit_power_off = on_exit_power_off
         self.discard_echo = discard_echo
@@ -120,7 +115,7 @@ class ServoBus:
 
         if parameters is None:
             parameters = b''
-        
+
         # Build the packet: [Header(2)] [ID] [Length] [Command] [Parameters...] [Checksum]
         servo_packet = bytearray(constants._PACKET_HEADER)
         servo_packet.append(servo_id)
@@ -164,25 +159,25 @@ class ServoBus:
             # Increased to 2048 to handle noisy lines or large buffers
             bytes_scanned = 0
             max_scan = 2048
-            
+
             while bytes_scanned < max_scan:
                 b = self.serial_conn.read(1)
                 if not b:
                     # Timeout
                     break
                 bytes_scanned += 1
-                
+
                 if b == constants._PACKET_HEADER[0:1]:
                     # Found first byte, check second
                     b2 = self.serial_conn.read(1)
                     if not b2:
                         break # Timeout
                     bytes_scanned += 1
-                    
+
                     if b2 == constants._PACKET_HEADER[1:2]:
                         header_found = True
                         break
-            
+
             if not header_found:
                 raise ServoBusError(f'Timed out or failed to find packet header after scanning {bytes_scanned} bytes.')
 
@@ -191,7 +186,7 @@ class ServoBus:
             if len(data) < 3:
                 raise ServoBusError('Timed out reading packet metadata.')
             servo_id, length, command = data
-            
+
             # Read parameters: (length - 3) bytes
             # The "length" field includes Command + Parameters + Checksum, so we subtract 3
             # to get just the parameter count.
@@ -199,7 +194,7 @@ class ServoBus:
             parameters = self.serial_conn.read(param_count)
             if len(parameters) < param_count:
                 raise ServoBusError('Timed out reading packet parameters.')
-            
+
             # Read and verify checksum (1 byte)
             checksum_bytes = self.serial_conn.read(1)
             if len(checksum_bytes) < 1:
@@ -257,14 +252,14 @@ class ServoBus:
 
                 return response
 
-            except ServoBusError as e:
-                last_error = e
+            except Exception as e:
+                last_error = e if isinstance(e, ServoBusError) else ServoBusError(str(e))
                 # If this wasn't the last attempt, we can retry
                 if attempt < self.retry_count:
                     # Optional: small delay to let bus settle
                     time.sleep(0.01)
                     continue
-        
+
         # If we exhausted all retries, raise the last error
         if last_error:
             raise last_error
@@ -275,7 +270,7 @@ class ServoBus:
         """
         servo_id - Target servo ID (0-253)
         name - Optional name for the servo (for easier identification)
-        
+
         returns a Servo object representing the servo with the given ID.
         """
         # Local import to avoid circular imports
@@ -309,6 +304,9 @@ class ServoBus:
 
         params = constants._2_UNSIGNED_SHORTS_STRUCT.pack(angle, time_ms)
         self._send_packet(servo_id, command, params)
+
+        if wait:
+            time.sleep(time_s)
 
     def move_time_write(self, servo_id: int, angle_degrees: types.Real, time_s: types.Real,
                         wait: bool = False) -> None:
@@ -382,37 +380,17 @@ class ServoBus:
         speed_dps - speed in degrees per second
 
         moves to angle at a specific speed (degrees/second).
-        """
+        Raises ValueError if speed_dps <= 0.
+
+        if speed_dps <= 0:
+            raise ValueError(
+                f'speed_dps must be greater than 0; got {speed_dps}.')
 
         current_angle = self.pos_read(servo_id)
         error = abs(angle_degrees - current_angle)
         time_s = error / speed_dps
 
         self.move_time_write(servo_id, angle_degrees, time_s, wait=wait)
-
-    def velocity_read(
-            self, *servo_ids: int, period_s: types.Real = 0.1
-    ) -> List[float]:
-        """
-        servo_ids - One or more servo IDs to read velocity from.
-        period_s - Time interval over which to measure velocity (seconds).
-
-        Estimate current velocity by sampling position twice with a delay.
-        """
-
-        measurements0 = [(time.monotonic(), self.pos_read(servo_id)) for
-                         servo_id in servo_ids]
-        time.sleep(period_s)
-        measurements1 = [(time.monotonic(), self.pos_read(servo_id)) for
-                         servo_id in servo_ids]
-
-        velocities = []
-        for measurement0, measurement1 in zip(measurements0, measurements1):
-            time0, position0 = measurement0
-            time1, position1 = measurement1
-            velocities.append((position1 - position0) / (time1 - time0))
-
-        return velocities
 
     def move_start(self, servo_id: int) -> None:
         """
@@ -551,15 +529,15 @@ class ServoBus:
 
         """
 
-        def scrub_voltage(v: types.Real) -> int:
+        def clamp_voltage(v: types.Real) -> int:
             # Convert to millivolts and clamp to valid range
             v = int(round(v * 1000))
             return min(max(4500, v), 12000)
 
-        min_voltage_mv = scrub_voltage(min_voltage)
-        max_voltage_mv = scrub_voltage(max_voltage)
+        min_voltage_mv = clamp_voltage(min_voltage)
+        max_voltage_mv = clamp_voltage(max_voltage)
 
-        if min_voltage_mv > max_voltage_mv:
+        if min_voltage_mv >= max_voltage_mv:
             raise ValueError(
                 f'min_voltage must be less than max_voltage; got min_voltage={min_voltage} (==> min_voltage_mv={min_voltage_mv}) '
                 f'and max_voltage={max_voltage} (==> max_voltage_mv={max_voltage_mv}).')
@@ -599,13 +577,16 @@ class ServoBus:
 
         units = utils._validate_temp_units(units)
 
-        if units == 'F':
-            temp = utils._fahrenheit_to_celsius(temp)
+        temp_c = utils._fahrenheit_to_celsius(temp) if units == 'F' else temp
 
-        temp = int(round(temp))
-        temp = min(max(50, temp), 100)
+        if temp_c < 50 or temp_c > 100:
+            raise ValueError(
+                f'temp must be in range [50, 100] degrees C ([122, 212] degrees F); '
+                f'got temp={temp} (==> temp_c={temp_c}) degrees {units}.')
 
-        self._send_packet(servo_id, constants._SERVO_TEMP_MAX_LIMIT_WRITE, bytes((temp,)))
+        temp_c = int(round(temp_c))
+
+        self._send_packet(servo_id, constants._SERVO_TEMP_MAX_LIMIT_WRITE, bytes((temp_c,)))
 
     def temp_max_limit_read(self, servo_id: int,
                             units: str = 'F') -> float:
@@ -808,12 +789,12 @@ class ServoBus:
         return stalled, over_voltage, over_temp
 
     def return_data_packet(self, servo_id: int) -> ServoDataPacket:
+        """Return a telemetry snapshot for the given servo by polling it."""
         packet = ServoDataPacket(
             servo_id = servo_id,
-            current_position = self.pos_read(),
-            velocity = np.mean(self.velocity_read()),
-            angel_offset = self.angle_offset_read(),
-            current_temp = self.temp_read(),
-            voltage = self.vin_read(),
+            current_position = self.pos_read(servo_id),
+            angle_offset = self.angle_offset_read(servo_id),
+            current_temp = self.temp_read(servo_id),
+            voltage = self.vin_read(servo_id),
         )
         return packet
