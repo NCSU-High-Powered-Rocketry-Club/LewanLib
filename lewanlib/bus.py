@@ -787,8 +787,7 @@ class ServoBus:
         return stalled, over_voltage, over_temp
 
     def return_data_packet(self, servo_id: int) -> ServoDataPacket:
-        """
-        """
+        """Return a telemetry snapshot for the given servo by polling it."""
         packet = ServoDataPacket(
             servo_id = servo_id,
             current_position = self.pos_read(servo_id),
