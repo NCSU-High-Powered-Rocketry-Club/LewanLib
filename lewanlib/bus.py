@@ -18,6 +18,9 @@ import serial
 from lewanlib import constants, utils, types
 from lewanlib.servo_data_packet import ServoDataPacket
 
+class ServoBusError(Exception):
+    """Exception raised for LewanSoul servo bus protocol and communication errors."""
+
 class ServoBus:
     """
     Represents a bus of LewanSoul servos connected via a serial interface.
@@ -176,12 +179,12 @@ class ServoBus:
                         break
 
             if not header_found:
-                raise Exception(f'Timed out or failed to find packet header after scanning {bytes_scanned} bytes.')
+                raise ServoBusError(f'Timed out or failed to find packet header after scanning {bytes_scanned} bytes.')
 
             # Read ID, Length, and Command (3 bytes)
             data = self.serial_conn.read(3)
             if len(data) < 3:
-                raise Exception('Timed out reading packet metadata.')
+                raise ServoBusError('Timed out reading packet metadata.')
             servo_id, length, command = data
 
             # Read parameters: (length - 3) bytes
@@ -190,12 +193,12 @@ class ServoBus:
             param_count = length - 3
             parameters = self.serial_conn.read(param_count)
             if len(parameters) < param_count:
-                raise Exception('Timed out reading packet parameters.')
+                raise ServoBusError('Timed out reading packet parameters.')
 
             # Read and verify checksum (1 byte)
             checksum_bytes = self.serial_conn.read(1)
             if len(checksum_bytes) < 1:
-                raise Exception('Timed out reading packet checksum.')
+                raise ServoBusError('Timed out reading packet checksum.')
             checksum = checksum_bytes[0]
 
         # Verify checksum to detect corruption
@@ -203,7 +206,7 @@ class ServoBus:
             actual_checksum = utils._calculate_checksum(servo_id, length, command,
                                                        parameters)
             if checksum != actual_checksum:
-                raise Exception(
+                raise ServoBusError(
                     f'Checksum failed for received packet! '
                     f'Received checksum = {checksum}. '
                     f'Actual checksum = {actual_checksum}.'
@@ -235,14 +238,14 @@ class ServoBus:
 
                 # Make sure received packet servo ID matches (so we got data from the right servo)
                 if response.servo_id != servo_id:
-                    raise Exception(
+                    raise ServoBusError(
                         f'Received packet servo ID ({response.servo_id}) does not '
                         f'match sent packet servo ID ({servo_id}).'
                     )
 
                 # Make sure received packet command matches (so we got the right response)
                 if response.command != command:
-                    raise Exception(
+                    raise ServoBusError(
                         f'Received packet command ({response.command}) does not '
                         f'match sent packet command ({command}).'
                     )
@@ -250,7 +253,7 @@ class ServoBus:
                 return response
 
             except Exception as e:
-                last_error = e
+                last_error = e if isinstance(e, ServoBusError) else ServoBusError(str(e))
                 # If this wasn't the last attempt, we can retry
                 if attempt < self.retry_count:
                     # Optional: small delay to let bus settle
@@ -261,7 +264,7 @@ class ServoBus:
         if last_error:
             raise last_error
         # Should not be reachable
-        raise Exception("Unknown error in _send_and_receive_packet")
+        raise ServoBusError("Unknown error in _send_and_receive_packet")
 
     def get_servo(self, servo_id: int, name: Optional[str] = None):
         """
